@@ -1,56 +1,84 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+import plotly.express as px
 import seaborn as sns
 
-# Configuração inicial do Streamlit
-st.set_page_config(page_title="Dashboard Imobiliário", layout="wide")
+st.set_page_config(layout="wide")
+st.title("Dashboard de Análise de Imóveis")
 
-# Carregar os dados
 @st.cache_data
-def carregar_dados():
-    caminho_arquivo = "ml_sale_houses_cleaned.csv"
-    data = pd.read_csv(caminho_arquivo)
+def load_data():
+    data = pd.read_csv("/content/drive/MyDrive/Colab Notebooks/Ciência de Dados/Trabalho/ml_sale_houses_cleaned.csv")
+    data['Preço/m²'] = data['Preço'] / data['Área (m²)']
+    bins = [0, 100000, 300000, 500000, 1000000, np.inf]
+    labels = ['Muito Barato', 'Barato', 'Médio', 'Caro', 'Muito Caro']
+    data['Faixa de Preço'] = pd.cut(data['Preço'], bins=bins, labels=labels)
+    scaler = MinMaxScaler()
+    data['Preço_Normalizado'] = scaler.fit_transform(data[['Preço']])
     return data
 
-df = carregar_dados()
+data = load_data()
 
-# Título do dashboard
-st.title("📊 Dashboard de Análise Imobiliária")
-st.markdown("### Comparação de Preço por Metro Quadrado e Área Média por UF")
+def create_sidebar():
+    with st.sidebar:
+        st.header("Filtros")
+        uf_filter = st.multiselect("Selecione a UF", options=data["UF"].unique(), default=list(data["UF"].unique()))
+        destaque_filter = st.radio("Filtrar por Destaque", options=["Todos", "Sim", "Não"])
+        preco_range = st.slider("Faixa de Preço", int(data["Preço"].min()), int(data["Preço"].max()), (int(data["Preço"].min()), int(data["Preço"].max())))
+    return uf_filter, destaque_filter, preco_range
 
-# Seleção de UF para análise detalhada
-ufs_disponiveis = df["UF"].unique()
-uf_selecionada = st.selectbox("Selecione uma UF para análise detalhada:", ufs_disponiveis)
+def filter_data(data, uf_filter, destaque_filter, preco_range):
+    filtered_data = data[(data["UF"].isin(uf_filter)) & (data["Preço"].between(preco_range[0], preco_range[1]))]
+    if destaque_filter != "Todos":
+        filtered_data = filtered_data[filtered_data["Destaque"] == destaque_filter]
+    return filtered_data
 
-# Filtrar dados por UF
-df_filtrado = df[df["UF"] == uf_selecionada]
+def plot_scatter_price_vs_area(filtered_data):
+    st.subheader("Relação Preço x Área")
+    fig = px.scatter(filtered_data, x='Área (m²)', y='Preço', color='Destaque', title="Preço vs Área")
+    st.plotly_chart(fig)
 
-# Estatísticas gerais da UF selecionada
-st.markdown(f"### 📌 Estatísticas Gerais - {uf_selecionada}")
-col1, col2, col3 = st.columns(3)
-col1.metric("Preço Médio por m²", f"R$ {df_filtrado['Preço'].mean():,.2f}")
-col2.metric("Área Média", f"{df_filtrado['Área (m²)'].mean():,.2f} m²")
-col3.metric("Quantidade de Imóveis", df_filtrado.shape[0])
+def plot_price_per_area(filtered_data):
+    st.subheader("Preço por m²")
+    fig = px.scatter(filtered_data, x='Área (m²)', y='Preço/m²', color='Destaque', title="Preço por m² vs Área")
+    st.plotly_chart(fig)
 
-# Criar gráfico de distribuição de preços por m²
-st.markdown("### 📊 Distribuição de Preço por Metro Quadrado")
-fig, ax = plt.subplots(figsize=(10, 5))
-sns.histplot(df_filtrado["Preço"], bins=30, kde=True, color="blue")
-plt.xlabel("Preço por m² (R$)")
-plt.ylabel("Frequência")
-plt.title(f"Distribuição de Preço por m² - {uf_selecionada}")
-st.pyplot(fig)
+def plot_price_comparison_by_uf(filtered_data):
+    st.subheader("Comparação entre UF")
+    uf_comparativo = filtered_data.groupby('UF').agg({'Preço/m²': 'mean'}).reset_index()
+    fig = px.line(uf_comparativo, x='UF', y='Preço/m²', title="Variação do Preço Médio por UF", markers=True)
+    fig.update_layout(xaxis=dict(tickangle=-90))
+    st.plotly_chart(fig)
 
-# Criar gráfico de dispersão entre preço e área
-st.markdown("### 📈 Relação entre Área e Preço Total")
-fig, ax = plt.subplots(figsize=(10, 5))
-sns.scatterplot(x=df_filtrado["Área (m²)"], y=df_filtrado["Preço"], alpha=0.5)
-plt.xlabel("Área (m²)")
-plt.ylabel("Preço por m² (R$)")
-plt.title(f"Área vs. Preço - {uf_selecionada}")
-st.pyplot(fig)
+def plot_price_distribution(filtered_data):
+    st.subheader("Distribuição do Preço")
+    price_data = filtered_data['Preço'].value_counts().sort_index()
+    st.bar_chart(price_data)
 
-# Exibir tabela com os dados filtrados
-st.markdown("### 📋 Tabela de Dados")
-st.dataframe(df_filtrado[["UF", "Preço", "Área (m²)", "Quartos", "Banheiros"]].sort_values(by="Preço", ascending=False))
+def plot_rooms_distribution(filtered_data):
+    st.subheader("Distribuição do Número de Quartos")
+    rooms_data = filtered_data['Quartos'].value_counts().sort_index()
+    st.bar_chart(rooms_data)
+
+def plot_bathrooms_distribution(filtered_data):
+    st.subheader("Distribuição do Número de Banheiros")
+    bathrooms_data = filtered_data['Banheiros'].value_counts().sort_index()
+    st.bar_chart(bathrooms_data)
+
+def plot_area_distribution(filtered_data):
+    st.subheader("Distribuição da Área (m²)")
+    area_data = filtered_data['Área (m²)'].value_counts().sort_index()
+    st.bar_chart(area_data)
+
+uf_filter, destaque_filter, preco_range = create_sidebar()
+filtered_data = filter_data(data, uf_filter, destaque_filter, preco_range)
+
+plot_scatter_price_vs_area(filtered_data)
+plot_price_per_area(filtered_data)
+plot_price_comparison_by_uf(filtered_data)
+plot_price_distribution(filtered_data)
+plot_rooms_distribution(filtered_data)
+plot_bathrooms_distribution(filtered_data)
+plot_area_distribution(filtered_data)
