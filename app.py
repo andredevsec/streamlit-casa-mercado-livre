@@ -10,7 +10,7 @@ st.title("Dashboard de Análise de Imóveis")
 
 @st.cache_data
 def load_data():
-    data = pd.read_csv("/content/drive/MyDrive/Colab Notebooks/Ciência de Dados/Trabalho/ml_sale_houses_cleaned.csv")
+    data = pd.read_csv("ml_sale_houses_cleaned.csv")
     data['Preço/m²'] = data['Preço'] / data['Área (m²)']
     bins = [0, 100000, 300000, 500000, 1000000, np.inf]
     labels = ['Muito Barato', 'Barato', 'Médio', 'Caro', 'Muito Caro']
