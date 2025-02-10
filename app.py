@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler
 import plotly.express as px
 import seaborn as sns
+import matplotlib.pyplot as plt
 
 st.set_page_config(layout="wide")
 st.title("Dashboard de Análise de Imóveis")
@@ -15,8 +15,6 @@ def load_data():
     bins = [0, 100000, 300000, 500000, 1000000, np.inf]
     labels = ['Muito Barato', 'Barato', 'Médio', 'Caro', 'Muito Caro']
     data['Faixa de Preço'] = pd.cut(data['Preço'], bins=bins, labels=labels)
-    scaler = MinMaxScaler()
-    data['Preço_Normalizado'] = scaler.fit_transform(data[['Preço']])
     return data
 
 data = load_data()
@@ -26,7 +24,8 @@ def create_sidebar():
         st.header("Filtros")
         uf_filter = st.multiselect("Selecione a UF", options=data["UF"].unique(), default=list(data["UF"].unique()))
         destaque_filter = st.radio("Filtrar por Destaque", options=["Todos", "Sim", "Não"])
-        preco_range = st.slider("Faixa de Preço", int(data["Preço"].min()), int(data["Preço"].max()), (int(data["Preço"].min()), int(data["Preço"].max())))
+        preco_range = st.slider("Faixa de Preço", int(data["Preço"].min()), int(data["Preço"].max()), 
+                                (int(data["Preço"].min()), int(data["Preço"].max())))
     return uf_filter, destaque_filter, preco_range
 
 def filter_data(data, uf_filter, destaque_filter, preco_range):
